@@ -67,14 +67,23 @@ def generate_news_narrative(topics):
         print(f"Error generating narrative: {e}")
         return "I'm having trouble generating news content at the moment. Please try again later."
 
-def send_to_avatar(text, image_url=None, next_app_url=DEFAULT_NEXT_APP_URL):
-    """Send the generated text and optional image URL to the NextJS app for the avatar to speak."""
+def send_to_avatar(text, image_url=None, background_image=None, next_app_url=DEFAULT_NEXT_APP_URL):
+    """Send the generated text and optional image URL to the NextJS app for the avatar to speak.
+    
+    Parameters:
+    - text: The text for the avatar to speak
+    - image_url: Optional URL of an image to display alongside text
+    - background_image: Optional URL of an image to replace the green screen background
+    - next_app_url: Base URL of the NextJS app
+    """
     endpoint = f"{next_app_url}/api/receive-text"
     
     # Prepare the payload
     payload = {"text": text}
     if image_url:
         payload["imageUrl"] = image_url
+    if background_image:
+        payload["backgroundImage"] = background_image
     
     try:
         response = requests.post(
@@ -84,10 +93,13 @@ def send_to_avatar(text, image_url=None, next_app_url=DEFAULT_NEXT_APP_URL):
         )
         
         if response.status_code == 200:
+            success_msg = "Successfully sent text"
             if image_url:
-                print(f"Successfully sent text and image to avatar")
-            else:
-                print(f"Successfully sent text to avatar")
+                success_msg += " and image"
+            if background_image:
+                success_msg += " with custom background"
+            success_msg += " to avatar"
+            print(success_msg)
             return True
         else:
             print(f"Failed to send to avatar: {response.status_code} - {response.text}")
@@ -136,6 +148,8 @@ def main():
                         help='Number of generations in continuous mode (default: 10)')
     parser.add_argument('--image', type=str, 
                         help='URL of an image to display with the text')
+    parser.add_argument('--background', type=str, 
+                        help='URL of an image to replace the green screen background')
     
     args = parser.parse_args()
     
@@ -147,13 +161,10 @@ def main():
     print(narrative)
     print("-" * 40)
     
-    # Send to avatar with optional image
+    # Send to avatar with optional image and background
     print("\nSending to avatar...")
-    if send_to_avatar(narrative, args.image, args.url):
-        if args.image:
-            print("Successfully sent initial narrative with image to avatar")
-        else:
-            print("Successfully sent initial narrative to avatar")
+    if send_to_avatar(narrative, args.image, args.background, args.url):
+        print("Successfully sent initial narrative to avatar")
     else:
         print("Failed to send initial narrative to avatar")
         return
@@ -176,11 +187,8 @@ def main():
             print("-" * 40)
             
             print("Sending to avatar...")
-            if send_to_avatar(continuation, args.image, args.url):
-                if args.image:
-                    print(f"Successfully sent continuation {i+2}/{args.rounds} with image to avatar")
-                else:
-                    print(f"Successfully sent continuation {i+2}/{args.rounds} to avatar")
+            if send_to_avatar(continuation, args.image, args.background, args.url):
+                print(f"Successfully sent continuation {i+2}/{args.rounds} to avatar")
             else:
                 print(f"Failed to send continuation {i+2}/{args.rounds} to avatar")
     

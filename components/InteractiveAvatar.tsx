@@ -33,6 +33,7 @@ export default function InteractiveAvatar() {
   const [knowledgeId, setKnowledgeId] = useState<string>("");
   const [avatarId, setAvatarId] = useState<string>("");
   const [language, setLanguage] = useState<string>('en');
+  const [backgroundImage, setBackgroundImage] = useState<string>("");
 
   const [data, setData] = useState<StartAvatarResponse>();
   const [text, setText] = useState<string>("");
@@ -45,6 +46,9 @@ export default function InteractiveAvatar() {
     try {
       const response = await fetch("/api/get-access-token", {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
       const token = await response.text();
 
@@ -53,6 +57,7 @@ export default function InteractiveAvatar() {
       return token;
     } catch (error) {
       console.error("Error fetching access token:", error);
+      setDebug("Error: " + (error.message || "Failed to fetch access token"));
     }
 
     return "";
@@ -114,6 +119,7 @@ export default function InteractiveAvatar() {
       setChatMode("voice_mode");
     } catch (error) {
       console.error("Error starting avatar session:", error);
+      setDebug("Error: " + (error.message || "Failed to start avatar session"));
     } finally {
       setIsLoadingSession(false);
     }
@@ -185,25 +191,134 @@ export default function InteractiveAvatar() {
     }
   }, [mediaStream, stream]);
 
+  // Green screen effect with canvas pixel replacement
+  useEffect(() => {
+    if (!stream || !mediaStream.current || !backgroundImage) return;
+    
+    const video = mediaStream.current;
+    const canvas = document.getElementById('greenScreenCanvas') as HTMLCanvasElement;
+    if (!canvas) return;
+    
+    // Setup canvas context
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Load background image
+    const bgImage = new Image();
+    bgImage.crossOrigin = 'Anonymous';
+    bgImage.src = backgroundImage;
+    
+    // Process video frames
+    const processFrame = () => {
+      // Set canvas dimensions to match video dimensions
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      
+      // Draw video frame to canvas
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      // Get image data to process pixels
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+      
+      // Define green threshold and sensitivity
+      const threshold = 100; // Adjust based on how sensitive you want the detection to be
+      
+      // Process each pixel
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        
+        // Check if pixel is green (g component significantly higher than r and b)
+        if (g > threshold && g > r * 1.5 && g > b * 1.5) {
+          // Set this pixel to be transparent
+          data[i + 3] = 0; // Alpha channel
+        }
+      }
+      
+      // Put processed image data back to canvas
+      ctx.putImageData(imageData, 0, 0);
+      
+      // Draw background image first (only where alpha is 0)
+      ctx.globalCompositeOperation = 'destination-over';
+      if (bgImage.complete) {
+        ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+      }
+      
+      // Request next frame
+      requestAnimationFrame(processFrame);
+    };
+    
+    // Start processing when video and background image are ready
+    const handleStart = () => {
+      if (video.readyState >= 2 && bgImage.complete) {
+        processFrame();
+      }
+    };
+    
+    video.addEventListener('canplay', handleStart);
+    bgImage.onload = handleStart;
+    
+    // If video is already loaded
+    if (video.readyState >= 2) {
+      handleStart();
+    }
+    
+    return () => {
+      video.removeEventListener('canplay', handleStart);
+    };
+  }, [stream, backgroundImage]);
+
   return (
     <div className="w-full flex flex-col gap-4">
       <Card>
         <CardBody className="h-[500px] flex flex-col justify-center items-center">
           {stream ? (
-            <div className="h-[500px] w-[900px] justify-center items-center flex rounded-lg overflow-hidden">
-              <video
-                ref={mediaStream}
-                autoPlay
-                playsInline
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "contain",
-                }}
-              >
-                <track kind="captions" />
-              </video>
-              <div className="flex flex-col gap-2 absolute bottom-3 right-3">
+            <div className="h-[500px] w-[900px] justify-center items-center flex rounded-lg overflow-hidden relative">
+              {/* The parent div that will hold both background and avatar */}
+              <div className="h-full w-full relative">
+                {/* Background image */}
+                {backgroundImage && (
+                  <div 
+                    className="absolute inset-0" 
+                    style={{
+                      backgroundImage: backgroundImage.startsWith('http') ? `url(${backgroundImage})` : 'none',
+                      backgroundColor: '#3c8a1f', // Medium green similar to the green screen
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                    }}
+                  />
+                )}
+                
+                {/* Green screen video with canvas-based pixel replacement */}
+                <div className="absolute inset-0 flex justify-center items-center">
+                  <video
+                    ref={mediaStream}
+                    autoPlay
+                    playsInline
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "contain",
+                      display: backgroundImage ? "none" : "block"
+                    }}
+                  >
+                    <track kind="captions" />
+                  </video>
+                  {backgroundImage && (
+                    <canvas 
+                      id="greenScreenCanvas" 
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "contain"
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 absolute bottom-3 right-3 z-20">
                 <Button
                   className="bg-gradient-to-tr from-indigo-500 to-indigo-300 text-white rounded-lg"
                   size="md"
@@ -272,6 +387,14 @@ export default function InteractiveAvatar() {
                     </SelectItem>
                   ))}
                 </Select>
+                <p className="text-sm font-medium leading-none mt-2">
+                  Background Image URL (replaces green screen)
+                </p>
+                <Input
+                  placeholder="Enter a background image URL"
+                  value={backgroundImage}
+                  onChange={(e) => setBackgroundImage(e.target.value)}
+                />
               </div>
               <Button
                 className="bg-gradient-to-tr from-indigo-500 to-indigo-300 w-full text-white"

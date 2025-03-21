@@ -2,7 +2,7 @@
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { text, imageUrl } = body;
+    const { text, imageUrl, backgroundImage } = body;
     
     if (!text) {
       return new Response("Text is required", { status: 400 });
@@ -14,15 +14,19 @@ export async function POST(request: Request) {
       global.textQueue = [];
     }
     
-    // Add text and optional image URL to the queue
+    // Add text, optional image URL, and optional background image to the queue
     global.textQueue.push({
       text,
-      imageUrl: imageUrl || null
+      imageUrl: imageUrl || null,
+      backgroundImage: backgroundImage || null
     });
     
     console.log("Received text:", text);
     if (imageUrl) {
       console.log("Received image URL:", imageUrl);
+    }
+    if (backgroundImage) {
+      console.log("Received background image URL:", backgroundImage);
     }
     
     return new Response(JSON.stringify({ success: true }), {

@@ -3,6 +3,7 @@
 interface QueueItem {
   text: string;
   imageUrl: string | null;
+  backgroundImage: string | null;
 }
 
 declare global {
