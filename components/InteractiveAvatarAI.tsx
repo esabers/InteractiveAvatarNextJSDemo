@@ -35,7 +35,7 @@ export default function InteractiveAvatarAI() {
   const [data, setData] = useState<StartAvatarResponse>();
   const [text, setText] = useState<string>("");
   const [currentImage, setCurrentImage] = useState<string | null>(null);
-  const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
+  const [backgroundImage, setBackgroundImage] = useState<string | null>("/logo.png");
   
   const mediaStream = useRef<HTMLVideoElement>(null);
   const avatar = useRef<StreamingAvatar | null>(null);
@@ -148,6 +148,9 @@ export default function InteractiveAvatarAI() {
           if (data.backgroundImage) {
             console.log("Received background image URL:", data.backgroundImage);
             setBackgroundImage(data.backgroundImage);
+          } else {
+            // Keep using default logo.png background
+            setBackgroundImage("/logo.png");
           }
           
           handleSpeak(data.text);
@@ -312,7 +315,7 @@ export default function InteractiveAvatarAI() {
                   <div 
                     className="absolute inset-0" 
                     style={{
-                      backgroundImage: backgroundImage.startsWith('http') ? `url(${backgroundImage})` : 'none',
+                      backgroundImage: `url(${backgroundImage})`,
                       backgroundColor: '#3c8a1f', // Medium green similar to the green screen
                       backgroundSize: 'cover',
                       backgroundPosition: 'center',
