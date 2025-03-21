@@ -35,7 +35,7 @@ export default function InteractiveAvatarAI() {
   const [data, setData] = useState<StartAvatarResponse>();
   const [text, setText] = useState<string>("");
   const [currentImage, setCurrentImage] = useState<string | null>(null);
-  const [backgroundImage, setBackgroundImage] = useState<string | null>("/logo.png");
+  // No need for background image state anymore as we're using animated circles
   
   const mediaStream = useRef<HTMLVideoElement>(null);
   const avatar = useRef<StreamingAvatar | null>(null);
@@ -144,14 +144,7 @@ export default function InteractiveAvatarAI() {
             setCurrentImage(null);
           }
           
-          // Handle background image if provided
-          if (data.backgroundImage) {
-            console.log("Received background image URL:", data.backgroundImage);
-            setBackgroundImage(data.backgroundImage);
-          } else {
-            // Keep using default logo.png background
-            setBackgroundImage("/logo.png");
-          }
+          // No longer using background images from API
           
           handleSpeak(data.text);
         }
@@ -223,22 +216,17 @@ export default function InteractiveAvatarAI() {
     }
   }, [mediaStream, stream]);
   
-  // Green screen effect with canvas pixel replacement
+  // Green screen effect with canvas pixel replacement - no background needed as it's handled by CSS
   useEffect(() => {
-    if (!stream || !mediaStream.current || !backgroundImage) return;
+    if (!stream || !mediaStream.current) return;
     
     const video = mediaStream.current;
     const canvas = document.getElementById('greenScreenCanvasAI') as HTMLCanvasElement;
     if (!canvas) return;
     
     // Setup canvas context
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { alpha: true });
     if (!ctx) return;
-    
-    // Load background image
-    const bgImage = new Image();
-    bgImage.crossOrigin = 'Anonymous';
-    bgImage.src = backgroundImage;
     
     // Process video frames
     const processFrame = () => {
@@ -269,28 +257,21 @@ export default function InteractiveAvatarAI() {
         }
       }
       
-      // Put processed image data back to canvas
+      // Put processed image data back to canvas (with transparency)
       ctx.putImageData(imageData, 0, 0);
-      
-      // Draw background image first (only where alpha is 0)
-      ctx.globalCompositeOperation = 'destination-over';
-      if (bgImage.complete) {
-        ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
-      }
       
       // Request next frame
       requestAnimationFrame(processFrame);
     };
     
-    // Start processing when video and background image are ready
+    // Start processing when video is ready
     const handleStart = () => {
-      if (video.readyState >= 2 && bgImage.complete) {
+      if (video.readyState >= 2) {
         processFrame();
       }
     };
     
     video.addEventListener('canplay', handleStart);
-    bgImage.onload = handleStart;
     
     // If video is already loaded
     if (video.readyState >= 2) {
@@ -300,7 +281,7 @@ export default function InteractiveAvatarAI() {
     return () => {
       video.removeEventListener('canplay', handleStart);
     };
-  }, [stream, backgroundImage]);
+  }, [stream]);
 
   return (
     <div className="w-full flex flex-col gap-4">
@@ -310,18 +291,56 @@ export default function InteractiveAvatarAI() {
             <div className="h-[500px] w-[900px] justify-center items-center flex rounded-lg overflow-hidden relative">
               {/* The parent div that will hold both background and avatar */}
               <div className="h-full w-full relative">
-                {/* Background image */}
-                {backgroundImage && (
-                  <div 
-                    className="absolute inset-0" 
-                    style={{
-                      backgroundImage: `url(${backgroundImage})`,
-                      backgroundColor: '#3c8a1f', // Medium green similar to the green screen
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center',
-                    }}
-                  />
-                )}
+                {/* Animated background with logo and circles */}
+                <div 
+                  className="absolute inset-0" 
+                  style={{
+                    backgroundColor: '#0f0e14', // Dark background color
+                    overflow: 'hidden',
+                  }}
+                >
+                  {/* Animated logos */}
+                  {Array.from({ length: 12 }).map((_, i) => (
+                    <img
+                      key={i}
+                      src="/logo.png"
+                      alt="Logo"
+                      className="absolute"
+                      style={{
+                        width: `${50 + Math.random() * 40}px`,
+                        height: 'auto',
+                        opacity: 0.15 + Math.random() * 0.15,
+                        left: `${Math.random() * 100}%`,
+                        top: `${Math.random() * 100}%`,
+                        animation: `float-${i % 5} ${10 + Math.random() * 15}s infinite ease-in-out`
+                      }}
+                    />
+                  ))}
+                  
+                  {/* Animated circles */}
+                  {Array.from({ length: 15 }).map((_, i) => (
+                    <div
+                      key={`circle-${i}`}
+                      className="absolute rounded-full"
+                      style={{
+                        width: `${20 + Math.random() * 40}px`,
+                        height: `${20 + Math.random() * 40}px`,
+                        opacity: 0.05 + Math.random() * 0.1,
+                        backgroundColor: `hsl(${Math.random() * 60 + 200}, 70%, 60%)`,
+                        left: `${Math.random() * 100}%`,
+                        top: `${Math.random() * 100}%`,
+                        animation: `float-${(i + 2) % 5} ${8 + Math.random() * 12}s infinite ease-in-out`
+                      }}
+                    />
+                  ))}
+                  <style jsx>{`
+                    @keyframes float-0 { 0%, 100% { transform: translate(0, 0) rotate(0deg); } 50% { transform: translate(20px, 20px) rotate(10deg); } }
+                    @keyframes float-1 { 0%, 100% { transform: translate(0, 0) rotate(5deg); } 50% { transform: translate(-20px, 10px) rotate(-5deg); } }
+                    @keyframes float-2 { 0%, 100% { transform: translate(0, 0) rotate(-5deg); } 50% { transform: translate(10px, -20px) rotate(5deg); } }
+                    @keyframes float-3 { 0%, 100% { transform: translate(0, 0) rotate(0deg); } 50% { transform: translate(-15px, -15px) rotate(-10deg); } }
+                    @keyframes float-4 { 0%, 100% { transform: translate(0, 0) rotate(10deg); } 50% { transform: translate(25px, 5px) rotate(0deg); } }
+                  `}</style>
+                </div>
                 
                 {/* Green screen video with canvas-based pixel replacement */}
                 <div className="absolute inset-0 flex justify-center items-center">
@@ -333,21 +352,19 @@ export default function InteractiveAvatarAI() {
                       width: "100%",
                       height: "100%",
                       objectFit: "contain",
-                      display: backgroundImage ? "none" : "block"
+                      display: "none" // Always hide video since we're showing the canvas
                     }}
                   >
                     <track kind="captions" />
                   </video>
-                  {backgroundImage && (
-                    <canvas 
-                      id="greenScreenCanvasAI" 
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "contain"
-                      }}
-                    />
-                  )}
+                  <canvas 
+                    id="greenScreenCanvasAI" 
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "contain"
+                    }}
+                  />
                 </div>
               </div>
               
@@ -445,7 +462,7 @@ export default function InteractiveAvatarAI() {
                 variant="shadow"
                 onClick={startSession}
               >
-                Start AI News Avatar
+                Start Interactive Avatar
               </Button>
             </div>
           ) : (
